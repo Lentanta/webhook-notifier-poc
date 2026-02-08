@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RabbitMQ Message Queue</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 700px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    p {
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 400px;
+      padding: 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      resize: vertical;
+      transition: border-color 0.3s;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    textarea.error-border {
+      border-color: #dc3545;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 15px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-send {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-send:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-format {
+      background: #f8f9fa;
+      color: #333;
+      border: 2px solid #dee2e6;
+    }
+
+    .btn-format:hover {
+      background: #e9ecef;
+    }
+
+    .btn-clear {
+      background: #fff;
+      color: #dc3545;
+      border: 2px solid #dc3545;
+    }
+
+    .btn-clear:hover {
+      background: #dc3545;
+      color: white;
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .response {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      display: none;
+      word-break: break-word;
+    }
+
+    .response.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+
+    .response.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>📨 JSON Message Queue</h1>
+    <p>Send JSON data to RabbitMQ</p>
+    <div class="hint">Enter valid JSON below (you can use the Format button to prettify it)</div>
+    <textarea id="jsonText">
+      {
+      "event_name": "subscriber.created",
+      "event_time": "01",
+      "subscriber": {
+      "id": "",
+      "status": "",
+      "email": "",
+      "source": "",
+      "first_name": "",
+      "last_name": "",
+      "segments": null,
+      "custom_fields": null,
+      "optin_ip": "",
+      "optin_timestamp": "",
+      "created_at": ""
+      },
+      "webhook_id": "001"
+      }
+    </textarea>
+    <div class="button-group">
+      <button class="btn-send" onclick="sendMessage()">Send to Queue</button>
+      <button class="btn-format" onclick="formatJson()">Format JSON</button>
+      <button class="btn-clear" onclick="clearInput()">Clear</button>
+    </div>
+    <div class="response" id="response"></div>
+  </div>
+
+  <script>
+    function formatJson() {
+      const textarea = document.getElementById('jsonText');
+      const responseDiv = document.getElementById('response');
+
+      try {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+        textarea.classList.remove('error-border');
+
+        responseDiv.className = 'response success';
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = '✅ JSON formatted successfully';
+
+        setTimeout(() => {
+          responseDiv.style.display = 'none';
+        }, 2000);
+      } catch (error) {
+        textarea.classList.add('error-border');
+        responseDiv.className = 'response error';
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = '❌ Invalid JSON: ' + error.message;
+      }
+    }
+
+    function clearInput() {
+      document.getElementById('jsonText').classList.remove('error-border');
+      document.getElementById('response').style.display = 'none';
+    }
+
+    async function sendMessage() {
+      const jsonText = document.getElementById('jsonText').value;
+      const responseDiv = document.getElementById('response');
+      const textarea = document.getElementById('jsonText');
+
+      if (!jsonText.trim()) {
+        textarea.classList.add('error-border');
+        responseDiv.className = 'response error';
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = 'Please enter JSON data';
+        return;
+      }
+
+      let jsonData;
+      try {
+        jsonData = JSON.parse(jsonText);
+        textarea.classList.remove('error-border');
+      } catch (error) {
+        textarea.classList.add('error-border');
+        responseDiv.className = 'response error';
+        responseDiv.style.display = 'block';
+        responseDiv.textContent = '❌ Invalid JSON: ' + error.message;
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({message: jsonData})
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          responseDiv.className = 'response success';
+          responseDiv.textContent = '✅ ' + data.message;
+          textarea.classList.remove('error-border');
+        } else {
+          responseDiv.className = 'response error';
+          responseDiv.textContent = '❌ ' + data.error;
+        }
+
+        responseDiv.style.display = 'block';
+
+        setTimeout(() => {
+          responseDiv.style.display = 'none';
+        }, 3000);
+
+      } catch (error) {
+        responseDiv.className = 'response error';
+        responseDiv.textContent = '❌ Error sending message: ' + error.message;
+        responseDiv.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+
+</html>

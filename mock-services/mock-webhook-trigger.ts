@@ -7,7 +7,7 @@ import path from 'node:path';
 const app = express();
 const PORT = 3000;
 
-const MAX_REQUEST = 3;
+const MAX_REQUEST = 20;
 
 // Middleware
 app.use(express.json());

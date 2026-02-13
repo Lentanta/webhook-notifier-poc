@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"webhook-notifier/internal/metrics"
 	"webhook-notifier/internal/models"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -34,14 +35,17 @@ func SenderWorker(
 	errMsg = fmt.Sprintf("Worker %v: Failed to set Prefetch", id)
 	failOnError(err, errMsg)
 
-	// Declare the queue with name in mock server
+	// Declare the queue with DLQ configuration
 	queue, err := ch.QueueDeclare(
 		"webhook_queue", // name
 		false,           // durable
 		false,           // delete when unused
 		false,           // exclusive
 		false,           // no-wait
-		nil,             // arguments
+		amqp.Table{
+			"x-dead-letter-exchange":    "webhook_dlx",
+			"x-dead-letter-routing-key": "webhook_failed",
+		},
 	)
 	errMsg = fmt.Sprintf("Worker %v: Failed to declare a queue", id)
 	failOnError(err, "Failed to declare a queue")
@@ -59,22 +63,27 @@ func SenderWorker(
 	for msg := range msgs {
 		log.Printf("Received a message: %s", msg.Body)
 
+		metrics.MessagesReceived.Inc()
+
 		// Get data from message
 		jsonData := []byte(msg.Body)
 		var qMessage models.QMessage
 		if err := json.Unmarshal(jsonData, &qMessage); err != nil {
 			log.Printf("Cannot unmarshal message data")
-			msg.Nack(false, false) // Don't requeue
+			metrics.MessagesFailed.Inc() // Metric failed go up
+			msg.Nack(false, false)       // Don't requeue
 			continue
 		}
 
-		fmt.Println("Worker ", id, " is processing ", qMessage.Content.WebhookID)
+		fmt.Println("Worker", id, "is processing", qMessage.Content.WebhookID)
 		err := ProcessSendWebhook(qMessage.Content)
 		if err != nil {
 			fmt.Print(err)
+			metrics.MessagesFailed.Inc() // Metric go up
 			msg.Nack(false, false)
 		} else {
 			fmt.Println("Worker ", id, " success process ", qMessage.Content.WebhookID)
+			metrics.MessagesProcessed.Inc() // Metric go up
 			msg.Ack(false)
 		}
 	}

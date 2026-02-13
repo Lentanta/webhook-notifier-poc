@@ -12,7 +12,12 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-const queueName = "webhook_queue"
+const (
+	queueName     = "webhook_queue"
+	dlxName       = "webhook_dlx"
+	dlqName       = "webhook_queue_dlq"
+	dlqRoutingKey = "webhook_failed"
+)
 
 type Publisher struct {
 	conn    *amqp.Connection
@@ -31,14 +36,62 @@ func NewPublisher(amqpURL string) (*Publisher, error) {
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
 
-	// Declare the queue to ensure it exists
+	// Declare dead letter exchange
+	err = ch.ExchangeDeclare(
+		dlxName,
+		"direct",
+		false, // durable
+		false, // auto-deleted
+		false, // internal
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to declare DLX: %w", err)
+	}
+
+	// Declare dead letter queue
+	_, err = ch.QueueDeclare(
+		dlqName,
+		false, // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+
+	// Bind DLQ to DLX
+	err = ch.QueueBind(
+		dlqName,
+		dlqRoutingKey,
+		dlxName,
+		false,
+		nil,
+	)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to bind DLQ: %w", err)
+	}
+
+	// Declare main queue with DLX configuration
 	_, err = ch.QueueDeclare(
 		queueName,
 		false, // durable
 		false, // delete when unused
 		false, // exclusive
 		false, // no-wait
-		nil,   // arguments
+		amqp.Table{
+			"x-dead-letter-exchange":    dlxName,
+			"x-dead-letter-routing-key": dlqRoutingKey,
+		},
 	)
 	if err != nil {
 		ch.Close()

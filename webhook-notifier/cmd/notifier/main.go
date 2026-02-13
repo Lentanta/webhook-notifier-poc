@@ -2,14 +2,17 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 	"webhook-notifier/internal/sender"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// Configuration for go workers
 const numWorkers = 3
 
 func failOnError(err error, msg string) {
@@ -18,8 +21,17 @@ func failOnError(err error, msg string) {
 	}
 }
 
+// Start HTTP server for prometheus metrics
 func main() {
-	// --- Connect to the queue
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		log.Println("Metrics server started on :8080")
+		if err := http.ListenAndServe(":8080", nil); err != nil {
+			log.Printf("Metrics server error: %v", err)
+		}
+	}()
+
+	// Connect to the queue
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()

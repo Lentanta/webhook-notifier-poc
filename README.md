@@ -23,6 +23,58 @@ A scalable, event-driven webhook notification system with monitoring and dead-le
 
 ![Architecture Diagram](./pics/architect-overview.png)
 
+### Problems Solved
+
+This POC addresses two main challenges:
+
+1. **Reliability** - Messages won't be lost even if services fail
+2. **Scalability** - Handle high message volume by adding more workers
+
+### Services Explained
+
+**PostgreSQL + Mock Service**
+- For POC demonstration only
+- Simulates how events might be triggered
+- Real implementation could use webhooks, APIs, or other event sources
+
+**Event Listener (Adapter)**
+- Receives events from any source (database, webhooks, APIs, etc.)
+- Adapts different event formats into standardized queue messages
+- Pushes messages to RabbitMQ
+- Decoupling layer between event sources and processing
+
+**RabbitMQ**
+- Message broker with Dead Letter Queue (DLQ)
+- Distributes work across workers
+- Failed messages go to DLQ for inspection
+
+**Webhook Notifier**
+- Worker pool (3 workers) processes messages concurrently
+- Sends HTTP POST to webhook URLs
+- Retry logic with exponential backoff
+- Exposes Prometheus metrics
+
+**Prometheus**
+- Monitors queue depth and processing rates
+- Tracks success/failure metrics
+
+### How It Ensures Reliability
+
+- **Message acknowledgment** - Messages only removed after successful send
+- **Dead Letter Queue** - Failed messages preserved for analysis
+- **Retry with exponential backoff** - Automatic retries for transient failures
+
+### How It Scales
+
+**Design Decision:**
+- **Stateless notifier** - No shared state between workers, enabling horizontal scaling
+- **Worker pool** - Vertical scaling experiment with 3 workers per instance
+
+**Scaling Strategies:**
+- **Horizontal scaling** - Deploy multiple webhook-notifier containers (stateless design)
+- **Vertical scaling** - Increase workers per container (worker pool pattern)
+- **Queue-based distribution** - RabbitMQ automatically balances load across all workers
+
 ---
 
 ## 🚀 Getting Started

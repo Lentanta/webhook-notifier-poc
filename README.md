@@ -1,1 +1,194 @@
-# webhook-notifier-poc
+# Webhook Notifier System
+
+A scalable, event-driven webhook notification system with monitoring and dead-letter queue support.
+
+## 🛠️ Technologies Used
+
+### Core Technologies
+
+- **Go 1.24** - Backend services (webhook-notifier, event-listener)
+- **TypeScript/Deno** - Mock event trigger service (Why Deno? Because I just want to try it, and it can run TypeScript without config)
+- **PostgreSQL 16** - Event persistence and storage
+- **RabbitMQ 3** - Message broker
+- **Docker & Docker Compose** - Containerization
+
+### Monitoring & Observability
+
+- **Prometheus** - Metrics collection and time-series database
+- **RabbitMQ Prometheus Plugin** - Built-in RabbitMQ metrics exporter
+
+---
+
+## 🏗️ Architecture Overview
+
+![Architecture Diagram](./pics/architect-overview.png)
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Docker & Docker Compose** - For running infrastructure services
+- **Go 1.24+** - For running Go services locally
+- **Deno** - For running the mock event trigger service
+
+### Step 1: Start Infrastructure Services
+
+```bash
+# Start PostgreSQL, RabbitMQ, and Prometheus
+docker-compose up -d
+```
+
+This will start:
+
+- **PostgreSQL** on port `5432`
+- **RabbitMQ** on ports `5672` (AMQP) and `15672` (Management UI)
+- **Prometheus** on port `9090`
+
+### Step 2: Enable RabbitMQ Prometheus Plugin
+
+```bash
+docker exec -it rabbitmq rabbitmq-plugins enable rabbitmq_prometheus
+docker-compose restart rabbitmq
+```
+
+### Step 3: Start Event Listener
+
+```bash
+cd event-listener
+go mod download
+go run cmd/listener/main.go
+```
+
+You should see:
+
+### Step 4: Start Webhook Notifier
+
+```bash
+cd webhook-notifier
+go mod download
+go run cmd/notifier/main.go
+```
+
+``
+
+### Step 5: Start Mock Event Trigger (Optional)
+
+```bash
+cd mock-services
+deno run --allow-net --allow-read --allow-env mock-webhook-trigger.ts
+```
+
+This starts a web UI on `http://localhost:3000` where you can trigger test events.
+
+### Step 6: Verify Everything is Running
+
+#### Check Service Health
+
+```bash
+# PostgreSQL
+docker-compose ps postgres
+
+# RabbitMQ Management UI
+open http://localhost:15672
+# Login: guest/guest
+
+# Prometheus Targets
+open http://localhost:9090/targets
+```
+
+All targets should show as **UP** ✅
+
+#### Check Metrics Endpoints
+
+```bash
+# Webhook Notifier metrics
+curl http://localhost:8080/metrics | grep webhook_messages
+
+# RabbitMQ metrics
+curl http://localhost:15692/metrics | grep rabbitmq_queue
+```
+
+### Step 7: Send a Test Event
+
+1. Open `http://localhost:3000`
+2. Edit the JSON payload
+3. Click "Add to Database"
+
+### Step 8: Verify the Event Flow
+
+1. **Check Event Listener logs** - Should see "Event pushed to queue"
+2. **Check Webhook Notifier logs** - Should see "Worker X is processing..."
+3. **Check RabbitMQ UI** - `http://localhost:15672/#/queues` - Messages processed
+4. **Check Prometheus metrics** - `http://localhost:9090/graph`
+   - Query: `webhook_messages_received_total`
+   - Query: `webhook_messages_processed_total`
+
+---
+
+## 📝 Quick Commands (For copy and run)
+
+### Enable RabbitMQ Prometheus Plugin
+
+```bash
+docker exec -it rabbitmq rabbitmq-plugins enable rabbitmq_prometheus
+```
+
+### Reload Prometheus Configuration
+
+```bash
+curl -X POST http://localhost:9090/-/reload
+```
+
+---
+
+## 🤖 AI Usage
+
+I use Claude Sonnet 4.5
+
+**Used for:**
+
+- Writing documentation and fixing grammar
+- Debugging Go code and fixing syntax errors (limited Go experience)
+- Creating HTML/CSS UI code
+- Implementing Prometheus metrics
+
+---
+
+## 📊 Available Metrics
+
+### Webhook Notifier Metrics
+
+```promql
+webhook_messages_received_total
+webhook_messages_processed_total
+webhook_messages_failed_total
+```
+
+### RabbitMQ Metrics
+
+```promql
+rabbitmq_queue_messages
+rabbitmq_queue_messages_ready
+rabbitmq_queue_messages_unacknowledged
+rabbitmq_queue_consumers
+rabbitmq_queue_messages_published_total
+rabbitmq_queue_messages_delivered_total
+```
+
+### Useful Queries
+
+```promql
+# Queue depth
+rabbitmq_queue_messages{queue="webhook_queue"}
+
+# Messages in DLQ
+rabbitmq_queue_messages{queue="webhook_queue_dlq"}
+
+# Success rate
+(webhook_messages_processed_total / webhook_messages_received_total) * 100
+
+# Check if services are up
+up
+```

@@ -27,9 +27,8 @@ func ProcessSendWebhook(we models.WebhookEvent) error {
 
 	webhooks := webhook.GetWebhook(we.EventName)
 	for _, wh := range webhooks {
-		err := handleRetrySendWebhook(wh.PostURL, jsonData)
-		if err != nil {
-			return fmt.Errorf("Failed to send and retry")
+		if err := handleRetrySendWebhook(wh.PostURL, jsonData); err != nil {
+			return err
 		}
 	}
 

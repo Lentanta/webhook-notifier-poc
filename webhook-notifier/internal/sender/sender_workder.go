@@ -30,7 +30,6 @@ func SenderWorker(
 	failOnError(err, errMsg)
 	defer ch.Close()
 
-	// Prefetch — only take 3 messages at a time
 	err = ch.Qos(prefetchCount, 0, false)
 	errMsg = fmt.Sprintf("Worker %v: Failed to set Prefetch", id)
 	failOnError(err, errMsg)
@@ -55,8 +54,7 @@ func SenderWorker(
 	)
 	errMsg = fmt.Sprintf("Worker %d: failed to start consumer", id)
 	failOnError(err, errMsg)
-
-	fmt.Println("===== Worker ", id, " started =====")
+	fmt.Println("Worker ", id, " started")
 
 	for msg := range msgs {
 		log.Printf("Received a message: %s", msg.Body)
@@ -70,12 +68,13 @@ func SenderWorker(
 			continue
 		}
 
+		fmt.Println("Worker ", id, " is processing ", qMessage.Content.WebhookID)
 		err := ProcessSendWebhook(qMessage.Content)
 		if err != nil {
 			fmt.Print(err)
 			msg.Nack(false, false)
 		} else {
-			log.Printf("===== Worker %d send succesfully =====", id)
+			fmt.Println("Worker ", id, " success process ", qMessage.Content.WebhookID)
 			msg.Ack(false)
 		}
 	}

@@ -1,6 +1,6 @@
 package models
 
-// For now, every models I will just put in this file
+// QMessage is the message format for RabbitMQ queue
 type QMessage struct {
 	Content   WebhookEvent `json:"content"`
 	Timestamp string       `json:"timestamp"`
@@ -33,9 +33,12 @@ type Segment struct {
 	Name string `json:"name"`
 }
 
-// --- Mock schema for the webhook
-type Webhook struct {
-	ID      string   `json:"id"`
-	PostURL string   `json:"post_url"`
-	Events  []string `json:"events"`
+// DBEvent represents an event row from the database
+type DBEvent struct {
+	ID        int64  `db:"id"`
+	EventName string `db:"event_name"`
+	EventTime string `db:"event_time"`
+	Payload   string `db:"payload"`
+	WebhookID string `db:"webhook_id"`
+	CreatedAt string `db:"created_at"`
 }

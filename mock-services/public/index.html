@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RabbitMQ Message Queue</title>
+  <title>Adding Data into Database</title>
   <style>
     * {
       margin: 0;
@@ -146,8 +146,8 @@
 
 <body>
   <div class="container">
-    <h1>📨 JSON Message Queue</h1>
-    <p>Send JSON data to RabbitMQ</p>
+    <h1>📨 Adding Data into Database</h1>
+    <p>Send JSON data to Database</p>
     <div class="hint">Enter valid JSON below (you can use the Format button to prettify it)</div>
     <textarea id="jsonText">
       {
@@ -166,11 +166,11 @@
       "optin_timestamp": "",
       "created_at": ""
       },
-      "webhook_id": "001"
+      "webhook_id": "random"
       }
     </textarea>
     <div class="button-group">
-      <button class="btn-send" onclick="sendMessage()">Send to Queue</button>
+      <button class="btn-send" onclick="sendMessage()">Add</button>
       <button class="btn-format" onclick="formatJson()">Format JSON</button>
       <button class="btn-clear" onclick="clearInput()">Clear</button>
     </div>
@@ -260,7 +260,7 @@
 
       } catch (error) {
         responseDiv.className = 'response error';
-        responseDiv.textContent = '❌ Error sending message: ' + error.message;
+        responseDiv.textContent = '❌ Error message: ' + error.message;
         responseDiv.style.display = 'block';
       }
     }

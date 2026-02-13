@@ -1,6 +1,7 @@
 import express from 'npm:express';
-import amqp from 'npm:amqplib';
 import rateLimit from 'npm:express-rate-limit';
+import postgres from 'npm:postgres';
+import { crypto } from "jsr:@std/crypto/crypto";
 
 import path from 'node:path';
 
@@ -14,22 +15,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(import.meta.dirname, 'public')));
 
-// RabbitMQ connection
-let channel: any;
-const QUEUE_NAME = 'webhook_queue';
+// PostgreSQL connection
+const sql = postgres({
+  host: 'localhost',
+  port: 5432,
+  database: 'events_db',
+  username: 'postgres',
+  password: 'postgres',
+});
 
-async function connectRabbitMQ() {
-  try {
-    const connection = await amqp.connect('amqp://localhost');
-    channel = await connection.createChannel();
-    await channel.assertQueue(QUEUE_NAME, { durable: false });
-    console.log('Connected to RabbitMQ');
-
-  } catch (error) {
-    console.error('RabbitMQ connection error:', error);
-  }
-}
-connectRabbitMQ();
+console.log('Connected to PostgreSQL');
 
 
 // Mock customer POST API with a rate limit
@@ -80,41 +75,50 @@ app.post('/customer-webhook', limiter, (req, res) => {
   });
 });
 
+function generateSecureRandomString(length = 16) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, length);
+}
+
 // HTML page with the form
 app.get('/', (_, res) => {
   res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
-// API endpoint for send message to queue
+// API endpoint to create event in database
 app.post('/api/send', async (req, res) => {
   const { message } = req.body;
-
   if (!message) return res.status(400).json({ error: 'No message' });
-  if (!channel) return res.status(503).json({ error: 'No channel' });
 
   try {
-    const messageData = {
-      content: message,
-      timestamp: new Date().toISOString()
-    };
+    const eventTime = new Date().toISOString();
 
-    channel.sendToQueue(
-      QUEUE_NAME,
-      Buffer.from(JSON.stringify(messageData)),
-      { persistent: true }
-    );
-
-    console.log('Message sent to queue:', message);
+    // Insert event into database
+    const result = await sql`
+      INSERT INTO events (event_name, event_time, payload, webhook_id)
+      VALUES (
+        ${message.event_name || 'test.event'},
+        ${eventTime},
+        ${sql.json(message)},
+        ${"WH-" + generateSecureRandomString(8)}
+      )
+      RETURNING id
+    `;
 
     res.json({
       success: true,
-      message: 'Message sent to queue successfully',
-      queuedAt: messageData.timestamp
+      message: 'Event inserted into database successfully',
+      eventId: result[0].id,
+      createdAt: eventTime
     });
 
   } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Failed to send message to queue' });
+    console.error('Error inserting event:', error);
+    res.status(500).json({ error: 'Failed to insert event into database' });
   }
 });
 

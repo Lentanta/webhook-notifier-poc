@@ -25,10 +25,34 @@ A scalable, event-driven webhook notification system with monitoring and dead-le
 
 ### Problems Solved
 
-This POC addresses two main challenges:
+This POC addresses these main challenges:
 
 1. **Reliability** - Messages won't be lost even if services fail
 2. **Scalability** - Handle high message volume by adding more workers
+3. **Testing** - I know the code has limited testability (tight coupling with HTTP client, DB, RabbitMQ). Since this is just a POC and I didn't have time to refactor everything for proper dependency injection, I only wrote a basic test for the webhook sender. Full test coverage would require more refactoring.
+4. **Fairness** - Prevent whale accounts from overwhelming the system by using multiple queues with different resource allocations
+
+![Multi-Queue Architecture](./pics/multiQ.png)
+
+**How Fairness Works:**
+- **Event Balancer** - Routes events to different queues based on account size
+- **Whale Queue** - High-volume accounts get processed by 4 dedicated workers with higher resources
+- **Normal Queue** - Medium accounts processed by 2 workers
+- **Small Queue** - Small accounts processed by 1 worker
+
+This ensures small accounts don't get starved when whale accounts trigger lots of events. Each queue has dedicated workers, so resource allocation is fair.
+
+**Alternative Solution - Rate Limiting with Token Bucket:**
+
+![Limited Queue Architecture](./pics/limitedQ.png)
+
+Instead of multiple queues, we can use a **rate limiter** approach:
+- **Event Process Limiter** - Checks user's current API call count or resource usage before processing
+- **Token Bucket Algorithm** - Each user has a limit (e.g., 1000 concurrent API calls)
+- **Re-queue on Limit** - When user A hits their limit, request #1001 gets put back into the queue
+- **FIFO Processing** - Messages are processed in order, but rate-limited per user
+
+This prevents any single user from monopolizing system resources while maintaining fairness.
 
 ### Services Explained
 
